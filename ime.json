@@ -1,0 +1,11 @@
+{
+	"name":"Google 粵語輸入法",
+	"version": "0.1",
+	"guid": "{4F3AE183-917A-4D1D-90E0-C4739B85C248}",
+	"locale": "zh-Hant-TW",
+    "fallbackLocale": "zh-TW",
+	"icon": "icon.ico",
+	"win8_icon": "",
+	"moduleName": "gcanton",
+	"serviceName": "GCantoneseTextService"
+}

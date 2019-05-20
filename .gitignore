@@ -1,0 +1,5 @@
+# Batch files
+*.bat
+
+# Shortcuts
+*.lnk

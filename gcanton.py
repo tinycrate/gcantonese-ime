@@ -16,6 +16,7 @@
 
 from keycodes import * # for VK_XXX constants
 from textService import *
+from input_methods.gcantonese.gretrieve import GWordRetrievalService
 import concurrent.futures
 import os.path
 import time
@@ -24,7 +25,8 @@ class GCantoneseTextService(TextService):
     def __init__(self, client):
         TextService.__init__(self, client)
         self.icon_dir = os.path.abspath(os.path.dirname(__file__))
-
+        self.retriever = None
+        
     def onActivate(self):
         TextService.onActivate(self)   
         icon_name = "eng.ico"
@@ -34,11 +36,16 @@ class GCantoneseTextService(TextService):
                 icon=os.path.join(self.icon_dir, icon_name),
                 tooltip="Google 粵語輸入法"
             )
-
+        if self.retriever == None:
+            self.retriever = GWordRetrievalService()
+            
     def onDeactivate(self):
         TextService.onDeactivate(self)
         if self.client.isWindows8Above:
             self.removeButton("windows-mode-icon")
+        if self.retriever != None:
+            self.retriever.close()
+            self.retriever = None
 
     def filterKeyDown(self, keyEvent):
         if not self.isComposing():
@@ -46,9 +53,12 @@ class GCantoneseTextService(TextService):
                 return True
             else:
                 return False
-        return True     
+        return True
         
     def onKeyDown(self, keyEvent):
+        print('ok')
+        if self.retriever == None:
+            print("FUCKUFCLCKCK")
         if keyEvent.keyCode != VK_CONTROL and keyEvent.isKeyDown(VK_CONTROL):
             self.setCompositionString("")
             return True
@@ -57,6 +67,13 @@ class GCantoneseTextService(TextService):
             return True
         if keyEvent.keyCode == VK_BACK:
             self.setCompositionString(self.compositionString[:-1])
+            return True
+        if keyEvent.keyCode == VK_F6:
+            self.setCandidateList(['輸', '入', '工', '具', '輸', '入'])
+            self.setShowCandidates(True)
+            return True
+        if keyEvent.keyCode == VK_F7:
+            self.setShowCandidates(False)
             return True
         if keyEvent.keyCode == VK_SPACE:
             commit = self.compositionString + ' '
@@ -73,4 +90,3 @@ class GCantoneseTextService(TextService):
         if self.client.isWindows8Above:
             # 若鍵盤關閉，我們需要把 widnows 8 mode icon 設定為 disabled
             self.changeButton("windows-mode-icon", enable=opened)
-        # FIXME: 是否需要同時 disable 其他語言列按鈕？

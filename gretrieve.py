@@ -20,8 +20,9 @@ import json
 import time
 import shutil
 import threading
-import urllib.request
 import urllib.parse
+import urllib.request
+import concurrent.futures
 from input_methods.gcantonese.sqlitedict import SqliteDict
 
 PAGE_SIZE = 6
@@ -38,14 +39,14 @@ class GSuggestion:
         self.word = word
         self.annotation = annotation
         self.matched_length = matched_length
-    
+
 class GRequest:
     request = ""
     suggestions = []
     requested_pages = 0
     max_pages = 32
     requested_time = 0
-    
+
 class GPage:
     word = ""
     page_num = 0
@@ -54,7 +55,7 @@ class GPage:
         self.word = word
         self.page_num = page_num
         self.suggestions = suggestions
-    
+
 class GWordRetrievalService:
     def __init__(self):
         folder = os.path.join(os.getenv('APPDATA'), 'gcantonese')
@@ -63,16 +64,19 @@ class GWordRetrievalService:
         self.cache = SqliteDict(os.path.join(folder, "cache.sqlite"), autocommit=True)
         self.requesting = {}
         self.threadlock = threading.Lock()
-        self.executor = ThreadPoolExecutor(max_workers=20)
-    
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+
     def request(self, input_str, pages):
+        print("[{}, {}]: Request scheduled!".format(input_str, pages))
         with self.threadlock:
             requested_time = time.time()
             requesting_pages = self.requesting.get(input_str, 0)
             if pages <= requesting_pages:
+                print("[{}, {}]: Request dropped for existing request".format(input_str, pages))
                 return
             self.requesting[input_str] = pages
         request_num = PAGE_SIZE * pages
+        print("[{}, {}]: Requesting {} items from Google Input!".format(input_str, pages, request_num))
         params = {}
         params['text'] = input_str
         params['itc'] = REQUEST_LANG
@@ -83,27 +87,29 @@ class GWordRetrievalService:
         trials = 0
         backoff = 0.1
         while True:
+            print("[{}, {}]: Request trail {}...".format(input_str, pages, trials))
             successful = False
             try:
-                response = urllib.request.urlopen(f"{REQUEST_URL}?{params_str}", timeout=1)
-                response = json.loads(response.read(), encoding='utf-8')
+                response = urllib.request.urlopen("{}?{}".format(REQUEST_URL, params_str), timeout=1)                   
+                response = json.loads(response.read().decode('utf-8'), encoding='utf-8')
                 if response[0] != "SUCCESS":
-                    print(f"[{input_str}, {pages}]:", 
-                          f"Google input tools reported an error: {response[0]}")
+                    print("[{}, {}]:".format(input_str, pages),
+                          "Google input tools reported an error: {}".format(response[0]))
                 else:
                     successful = True
             except (ValueError, urllib.error.URLError) as e:
-                print(f"[{input_str}, {pages}]: Word suggestion retrieval error: {e}")
+                print("[{}, {}]: Word suggestion retrieval error: {}".format(input_str, pages, e))
             if not successful:
                 if trials >= REQUEST_TRIAL_MAX:
-                    print(f"[{input_str}, {pages}]: Retrieval failed after {trials} retries.")
+                    print("[{}, {}]: Retrieval failed after {} retries.".format(input_str, pages, trials))
                     return
-                print(f"[{input_str}, {pages}]: Retrying in {backoff} seconds...")
+                print("[{}, {}]: Retrying in {backoff} seconds...".format(input_str, pages))
                 time.sleep(backoff)
                 backoff *= 2
                 trials += 1
             else:
                 break
+        print("[{}, {}]: Got a response! forging GRequest...".format(input_str, pages))
         word_suggestions = response[1][0][1]
         word_info = response[1][0][3]
         grequest = GRequest()
@@ -123,17 +129,22 @@ class GWordRetrievalService:
                     matched_length = word_info['matched_length'][i]
                 else:
                     matched_length = len(input_str)
-                grequest.suggestions.append(GSuggestion(word, annotation, 
+                grequest.suggestions.append(GSuggestion(word, annotation,
                                                         matched_length))
         grequest.requested_time = requested_time
+        print("[{}, {}]: Saving to cache...".format(input_str, pages))
         with self.threadlock:
             if input_str in self.cache:
                 if self.cache[input_str].requested_time > grequest.requested_time:
+                    print("[{}, {}]: Skipping save, cache is newer!".format(input_str, pages))
                     return
             self.cache[input_str] = grequest
             self.requesting.pop(input_str, 0)
-    
+        print("[{}, {}]: Request completed!".format(input_str, pages))
+
     def register_input(self, input_str):
+        if len(input_str) <= 0:
+            return
         cached = self.cache.get(input_str, None)
         if cached != None:
             if cached.requested_pages == cached.max_pages or \
@@ -142,7 +153,7 @@ class GWordRetrievalService:
         if input_str in self.requesting:
             return
         self.executor.submit(self.request, input_str, REQUEST_PAGE_MIN)
-    
+
     def get_page(self, input_str, page):
         cached = self.cache.get(input_str, None)
         if cached != None and cached.requested_pages > 0:
@@ -157,10 +168,10 @@ class GWordRetrievalService:
             return page
         else:
             # Page not ready
-            register_input(self, input_str) # Trigger word retrieval just in case
+            self.register_input(input_str) # Trigger word retrieval just in case
             return None
-            
+
     def close(self):
         self.executor.shutdown(wait=False)
         self.cache.close()
-        
+

@@ -21,14 +21,22 @@ import concurrent.futures
 import os.path
 import time
 
+class GCommit:
+    def __init__(self, selected_suggestion, matched_string):
+        self.selected_suggestion = selected_suggestion # Selected GSuggestion
+        self.matched_string = matched_string
+
 class GCantoneseTextService(TextService):
     def __init__(self, client):
         TextService.__init__(self, client)
         self.icon_dir = os.path.abspath(os.path.dirname(__file__))
         self.retriever = None
-        
+        self.commiting = []
+        self.composition_buffer = ""
+        self.selected_page = None
+
     def onActivate(self):
-        TextService.onActivate(self)   
+        TextService.onActivate(self)
         icon_name = "eng.ico"
         # Windows 8 以上已取消語言列功能，改用 systray IME mode icon
         if self.client.isWindows8Above:
@@ -38,7 +46,7 @@ class GCantoneseTextService(TextService):
             )
         if self.retriever == None:
             self.retriever = GWordRetrievalService()
-            
+
     def onDeactivate(self):
         TextService.onDeactivate(self)
         if self.client.isWindows8Above:
@@ -54,36 +62,107 @@ class GCantoneseTextService(TextService):
             else:
                 return False
         return True
+
+    def update_composition(self):
+        composition = ""
+        for commit in self.commiting:
+            composition += commit.selected_suggestion.word
+        composition += self.composition_buffer
+        self.setCompositionString(composition)
+        self.setShowCandidates(False)
+
+    def commit_composition(self):
+        self.update_composition()
+        self.setCommitString(self.compositionString)
+        self.clear_composition()
+
+    def clear_composition(self):
+        self.setShowCandidates(False)
+        self.setCompositionString("")
+        self.commiting.clear()
+        self.composition_buffer = ""
+
+    def on_candidate_select(self, index):
+        if self.selected_page == None:
+            return
+        index = max(min(index, len(self.selected_page.suggestions) - 1), 0)
+        selected = self.selected_page.suggestions[index]
+        matched_string = self.composition_buffer[:selected.matched_length]
+        self.composition_buffer = self.composition_buffer[selected.matched_length:]
+        self.commiting.append(GCommit(selected, matched_string))
+        self.update_composition()
+        if len(self.composition_buffer) == 0:
+            self.commit_composition()
+
+    def update_page(self):
+        if self.selected_page == None:
+            return
+        cursor = max(min(self.candidateCursor, len(self.selected_page.suggestions) - 1), 0)
+        self.setCandidateCursor(cursor)
+        words = list(map(lambda x: x.word, self.selected_page.suggestions))
+        self.setCandidateList(words)
         
     def onKeyDown(self, keyEvent):
-        print('ok')
         if self.retriever == None:
-            print("FUCKUFCLCKCK")
+            print("Error: retriever not ready!!")
         if keyEvent.keyCode != VK_CONTROL and keyEvent.isKeyDown(VK_CONTROL):
-            self.setCompositionString("")
+            self.composition_buffer = ""
+            self.commit_composition()
             return True
         if keyEvent.keyCode == VK_ESCAPE:
-            self.setCompositionString("")
+            self.clear_composition()
+            return True
+        if keyEvent.keyCode == VK_RETURN:
+            self.commit_composition()
+            return True
+        if keyEvent.keyCode >= ord('1') and keyEvent.keyCode <= ord('9'):
+            index = keyEvent.keyCode - ord('1')
+            if self.selected_page != None and \
+               self.showCandidates and \
+               index < len(self.selected_page.suggestions):
+                self.on_candidate_select(index)
             return True
         if keyEvent.keyCode == VK_BACK:
-            self.setCompositionString(self.compositionString[:-1])
-            return True
-        if keyEvent.keyCode == VK_F6:
-            self.setCandidateList(['輸', '入', '工', '具', '輸', '入'])
-            self.setShowCandidates(True)
-            return True
-        if keyEvent.keyCode == VK_F7:
-            self.setShowCandidates(False)
+            if len(self.composition_buffer) > 0:
+                self.composition_buffer = self.composition_buffer[:-1]
+            elif len(self.commiting) > 0:
+                last_commit = self.commiting.pop()
+                self.composition_buffer = last_commit.matched_string
+            self.update_composition()
             return True
         if keyEvent.keyCode == VK_SPACE:
-            commit = self.compositionString + ' '
-            self.setCompositionString("")
-            self.setCommitString(commit)
+            if self.selected_page != None and self.showCandidates:
+                self.on_candidate_select(self.candidateCursor)
+                return True
+            if len(self.composition_buffer) > 0:
+                for i in range(1,100):
+                    page = self.retriever.get_page(self.composition_buffer, 0)
+                    if page != None:
+                        break
+                    time.sleep(0.001)
+                if page != None:
+                    self.setCandidateCursor(0)
+                    self.selected_page = page
+                    self.update_page()
+                    self.setShowCandidates(True)
+                else:
+                    print("[{}]: Page not ready!".format(self.compositionString))
+                return True
+            self.commit_composition()
+            return True
         if keyEvent.keyCode >= ord('A') and keyEvent.keyCode <= ord('Z'):
-            self.setCompositionString(self.compositionString + chr(keyEvent.keyCode+32))
+            caps = False
+            if keyEvent.isKeyDown(VK_SHIFT):
+                caps = not caps
+            if keyEvent.isKeyToggled(VK_CAPITAL):
+                caps = not caps
+            self.composition_buffer = self.composition_buffer + \
+                                      chr(keyEvent.keyCode+(0 if caps else 32))
+            self.retriever.register_input(self.compositionString)
+            self.update_composition()
             return True
         return True
-            
+
     # 鍵盤開啟/關閉時會被呼叫 (在 Windows 10 Ctrl+Space 時)
     def onKeyboardStatusChanged(self, opened):
         # Windows 8 systray IME mode icon

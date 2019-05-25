@@ -15,6 +15,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 import os
+import re
 import math
 import json
 import time
@@ -67,56 +68,58 @@ class GWordRetrievalService:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
     def request(self, input_str, pages):
-        print("[{}, {}]: Request scheduled!".format(input_str, pages))
+        print("[{}, {}]: Request scheduled!".format(ascii(input_str), pages))
         with self.threadlock:
             requested_time = time.time()
             requesting_pages = self.requesting.get(input_str, 0)
             if pages <= requesting_pages:
-                print("[{}, {}]: Request dropped for existing request".format(input_str, pages))
+                print("[{}, {}]: Request dropped for existing request".format(ascii(input_str), pages))
                 return
             self.requesting[input_str] = pages
         request_num = PAGE_SIZE * pages
-        print("[{}, {}]: Requesting {} items from Google Input!".format(input_str, pages, request_num))
+        print("[{}, {}]: Requesting {} items from Google Input!".format(ascii(input_str), pages, request_num))
         params = {}
         params['text'] = input_str
         params['itc'] = REQUEST_LANG
         params['num'] = request_num
         params['ie'] = 'utf-8'
         params['oe'] = 'utf-8'
-        params_str = urllib.parse.urlencode(params)
+        params_str = urllib.parse.urlencode(params, encoding='utf-8')
         trials = 0
         backoff = 0.1
         while True:
-            print("[{}, {}]: Request trail {}...".format(input_str, pages, trials))
+            print("[{}, {}]: Request trail {}...".format(ascii(input_str), pages, trials))
             successful = False
             try:
-                response = urllib.request.urlopen("{}?{}".format(REQUEST_URL, params_str), timeout=1)                   
+                response = urllib.request.urlopen("{}?{}".format(REQUEST_URL, params_str), timeout=1)
                 response = json.loads(response.read().decode('utf-8'), encoding='utf-8')
                 if response[0] != "SUCCESS":
-                    print("[{}, {}]:".format(input_str, pages),
+                    print("[{}, {}]:".format(ascii(input_str), pages),
                           "Google input tools reported an error: {}".format(response[0]))
                 else:
                     successful = True
             except (ValueError, urllib.error.URLError) as e:
-                print("[{}, {}]: Word suggestion retrieval error: {}".format(input_str, pages, e))
+                print("[{}, {}]: Word suggestion retrieval error: {}".format(ascii(input_str), pages, e))
             if not successful:
                 if trials >= REQUEST_TRIAL_MAX:
-                    print("[{}, {}]: Retrieval failed after {} retries.".format(input_str, pages, trials))
+                    print("[{}, {}]: Retrieval failed after {} retries.".format(ascii(input_str), pages, trials))
                     return
-                print("[{}, {}]: Retrying in {backoff} seconds...".format(input_str, pages))
+                print("[{}, {}]: Retrying in {backoff} seconds...".format(ascii(input_str), pages))
                 time.sleep(backoff)
                 backoff *= 2
                 trials += 1
             else:
                 break
-        print("[{}, {}]: Got a response! forging GRequest...".format(input_str, pages))
+        print("[{}, {}]: Got a response! forging GRequest...".format(ascii(input_str), pages))
+        # Extract real input from queries like "|{committing},{real_input}"
+        real_input = re.sub(r"^\|.+,", "", input_str)
         word_suggestions = response[1][0][1]
         word_info = response[1][0][3]
         grequest = GRequest()
         grequest.request = input_str
         grequest.suggestions = []
         if len(word_suggestions) <= 0:
-            grequest.suggestions = [GSuggestion(input_str, "", len(input_str))]
+            grequest.suggestions = [GSuggestion(real_input, "", len(real_input))]
             grequest.requested_pages = 1
             grequest.max_pages = 1
         else:
@@ -128,19 +131,19 @@ class GWordRetrievalService:
                 if 'matched_length' in word_info:
                     matched_length = word_info['matched_length'][i]
                 else:
-                    matched_length = len(input_str)
+                    matched_length = len(real_input)
                 grequest.suggestions.append(GSuggestion(word, annotation,
                                                         matched_length))
         grequest.requested_time = requested_time
-        print("[{}, {}]: Saving to cache...".format(input_str, pages))
+        print("[{}, {}]: Saving to cache...".format(ascii(input_str), pages))
         with self.threadlock:
             if input_str in self.cache:
                 if self.cache[input_str].requested_time > grequest.requested_time:
-                    print("[{}, {}]: Skipping save, cache is newer!".format(input_str, pages))
+                    print("[{}, {}]: Skipping save, cache is newer!".format(ascii(input_str), pages))
                     return
             self.cache[input_str] = grequest
             self.requesting.pop(input_str, 0)
-        print("[{}, {}]: Request completed!".format(input_str, pages))
+        print("[{}, {}]: Request completed!".format(ascii(input_str), pages))
 
     def register_input(self, input_str):
         if len(input_str) <= 0:
@@ -160,7 +163,7 @@ class GWordRetrievalService:
             if page >= cached.requested_pages / 2 and \
                cached.requested_pages < cached.max_pages:
                 # Request more pages in advance
-                requesting_pages = max(cached.requested_pages * 2, cached.max_pages)
+                requesting_pages = min(cached.requested_pages * 2, cached.max_pages)
                 self.executor.submit(self.request, input_str, requesting_pages)
             page_num = max(min(page, cached.requested_pages - 1), 0)
             suggestions = cached.suggestions[page_num*PAGE_SIZE:(page_num+1)*PAGE_SIZE]

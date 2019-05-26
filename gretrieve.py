@@ -25,37 +25,13 @@ import urllib.parse
 import urllib.request
 import concurrent.futures
 from input_methods.gcantonese.sqlitedict import SqliteDict
+from input_methods.gcantonese.gtypes import *
 
 PAGE_SIZE = 6
 REQUEST_URL = "https://inputtools.google.com/request"
 REQUEST_LANG = "yue-hant-t-i0-und"
 REQUEST_PAGE_MIN = 2
 REQUEST_TRIAL_MAX = 7
-
-class GSuggestion:
-    word = ""
-    annotation = ""
-    matched_length = 0
-    def __init__(self, word, annotation, matched_length):
-        self.word = word
-        self.annotation = annotation
-        self.matched_length = matched_length
-
-class GRequest:
-    request = ""
-    suggestions = []
-    requested_pages = 0
-    max_pages = 32
-    requested_time = 0
-
-class GPage:
-    word = ""
-    page_num = 0
-    suggestions = []
-    def __init__(self, word, page_num, suggestions):
-        self.word = word
-        self.page_num = page_num
-        self.suggestions = suggestions
 
 class GWordRetrievalService:
     def __init__(self):

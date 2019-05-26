@@ -297,8 +297,10 @@ class GCantoneseTextService(TextService):
                 caps = not caps
             if keyEvent.isKeyToggled(VK_CAPITAL):
                 caps = not caps
-            self.composition_buffer = self.composition_buffer + \
-                                      chr(keyEvent.keyCode+(0 if caps else 32))
+            if len(self.composition_buffer) < 50 and \
+               sum(len(commit.matched_string) for commit in self.committing) < 50:
+                self.composition_buffer = self.composition_buffer + \
+                                          chr(keyEvent.keyCode+(0 if caps else 32))
             self.retriever.register_input(self.get_input_query())
             self.update_composition()
             return True

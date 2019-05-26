@@ -38,6 +38,7 @@ class GCantoneseTextService(TextService):
         self.selected_page = None
         self.is_masking = False
         self.chinese_enabled = True
+        self.last_pressed_key = 0
 
     def onActivate(self):
         TextService.onActivate(self)

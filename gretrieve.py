@@ -24,7 +24,7 @@ import threading
 import urllib.parse
 import urllib.request
 import concurrent.futures
-from input_methods.gcantonese.sqlitedict import SqliteDict
+from input_methods.gcantonese.gcache import GCacheService
 from input_methods.gcantonese.gtypes import *
 
 PAGE_SIZE = 6
@@ -38,7 +38,7 @@ class GWordRetrievalService:
         folder = os.path.join(os.getenv('APPDATA'), 'gcantonese')
         if not os.path.exists(folder):
             os.makedirs(folder)
-        self.cache = SqliteDict(os.path.join(folder, "cache.sqlite"), autocommit=True)
+        self.cache = GCacheService(os.path.join(folder, "cache.sqlite"))
         self.requesting = {}
         self.threadlock = threading.Lock()
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=20)
@@ -113,18 +113,19 @@ class GWordRetrievalService:
         grequest.requested_time = requested_time
         print("[{}, {}]: Saving to cache...".format(ascii(input_str), pages))
         with self.threadlock:
-            if input_str in self.cache:
-                if self.cache[input_str].requested_time > grequest.requested_time:
+            cached = self.cache.get(input_str)
+            if cached != None:
+                if cached.requested_time > grequest.requested_time:
                     print("[{}, {}]: Skipping save, cache is newer!".format(ascii(input_str), pages))
-                    return
-            self.cache[input_str] = grequest
+                    return            
+            self.cache.put(grequest)
             self.requesting.pop(input_str, 0)
         print("[{}, {}]: Request completed!".format(ascii(input_str), pages))
 
     def register_input(self, input_str):
         if len(input_str) <= 0:
             return
-        cached = self.cache.get(input_str, None)
+        cached = self.cache.get(input_str)
         if cached != None:
             if cached.requested_pages == cached.max_pages or \
                cached.requested_pages >= REQUEST_PAGE_MIN:
@@ -134,7 +135,7 @@ class GWordRetrievalService:
         self.executor.submit(self.request, input_str, REQUEST_PAGE_MIN)
 
     def get_page(self, input_str, page):
-        cached = self.cache.get(input_str, None)
+        cached = self.cache.get(input_str)
         if cached != None and cached.requested_pages > 0:
             if page >= cached.requested_pages / 2 and \
                cached.requested_pages < cached.max_pages:
@@ -152,5 +153,3 @@ class GWordRetrievalService:
 
     def close(self):
         self.executor.shutdown(wait=False)
-        self.cache.close()
-

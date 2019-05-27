@@ -153,3 +153,4 @@ class GWordRetrievalService:
 
     def close(self):
         self.executor.shutdown(wait=False)
+        self.cache.close()

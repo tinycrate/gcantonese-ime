@@ -57,7 +57,7 @@ class GCacheService:
                 suggestions = list(map(lambda x: (x.word, x.annotation, x.matched_length),
                                    grequest.suggestions))
                 conn.execute("""
-                    INSERT OR REPLACE INTO requests(request, suggestions, cached_pages, 
+                    INSERT OR REPLACE INTO requests(request, suggestions, cached_pages,
                                                     max_pages, requested_time, last_retrieved)
                     VALUES(?,?,?,?,?,?)
                 """, (
@@ -90,7 +90,7 @@ class GCacheService:
                 id = row[0]
                 result = GRequest()
                 result.request = query
-                result.suggestions = list(map(lambda x: GSuggestion(x[0],x[1],x[2]), 
+                result.suggestions = list(map(lambda x: GSuggestion(x[0],x[1],x[2]),
                                           json.loads(zlib.decompress(row[1]).decode('utf-8'))))
                 result.requested_pages = row[2]
                 result.max_pages = row[3]
@@ -100,3 +100,18 @@ class GCacheService:
                 """, (time.time(), id))
                 conn.commit()
                 return result
+
+    def close(self):
+        # Cleans up old entries
+        with sqlite3.connect(self.cache_path) as conn:
+            current_time = time.time()
+            conn.execute("""
+                DELETE FROM requests WHERE
+                    /* Remove super large requests */
+                    length(request) > 50 OR
+                    /* Remove entries older than 30 days */
+                    last_retrieved < (? - 2592000) OR
+                    /* Remove large entries older than 7 days */
+                    (length(request) > 20 AND last_retrieved < (? - 604800));
+            """, (current_time, current_time))
+            conn.commit()

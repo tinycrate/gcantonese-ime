@@ -15,6 +15,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 import json
+import zlib
 import sqlite3
 import threading
 from input_methods.gcantonese.gtypes import *
@@ -33,7 +34,7 @@ class GCacheService:
                 CREATE TABLE IF NOT EXISTS requests (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     request TEXT NOT NULL UNIQUE,
-                    suggestions TEXT NOT NULL,
+                    suggestions BLOB NOT NULL,
                     cached_pages INTEGER NOT NULL,
                     max_pages INTEGER NOT NULL,
                     requested_time REAL NOT NULL
@@ -59,7 +60,12 @@ class GCacheService:
                     VALUES(?,?,?,?,?)
                 """, (
                         grequest.request,
-                        json.dumps(suggestions),
+                        sqlite3.Binary(
+                            zlib.compress(json.dumps(
+                                    suggestions, separators=(',', ':')
+                                ).encode('utf-8')
+                            )
+                        ),
                         grequest.requested_pages,
                         grequest.max_pages,
                         grequest.requested_time,
@@ -81,7 +87,7 @@ class GCacheService:
                 result = GRequest()
                 result.request = query
                 result.suggestions = list(map(lambda x: GSuggestion(x[0],x[1],x[2]), 
-                                          json.loads(row[0])))
+                                          json.loads(zlib.decompress(row[0]).decode('utf-8'))))
                 result.requested_pages = row[1]
                 result.max_pages = row[2]
                 result.requested_time = row[3]

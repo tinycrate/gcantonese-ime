@@ -79,6 +79,8 @@ class GWordRetrievalService:
             if not successful:
                 if trials >= REQUEST_TRIAL_MAX:
                     print("[{}, {}]: Retrieval failed after {} retries.".format(ascii(input_str), pages, trials))
+                    with self.threadlock:
+                        self.requesting.pop(input_str, 0)
                     return
                 print("[{}, {}]: Retrying in {backoff} seconds...".format(ascii(input_str), pages))
                 time.sleep(backoff)
@@ -117,6 +119,7 @@ class GWordRetrievalService:
             if cached != None:
                 if cached.requested_time > grequest.requested_time:
                     print("[{}, {}]: Skipping save, cache is newer!".format(ascii(input_str), pages))
+                    self.requesting.pop(input_str, 0)
                     return            
             self.cache.put(grequest)
             self.requesting.pop(input_str, 0)

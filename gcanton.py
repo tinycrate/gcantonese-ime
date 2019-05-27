@@ -17,6 +17,7 @@
 from keycodes import * # for VK_XXX constants
 from textService import *
 from input_methods.gcantonese.gretrieve import GWordRetrievalService
+import input_methods.gcantonese.gsymbols as gsymbols
 import concurrent.futures
 import os.path
 import time
@@ -69,6 +70,8 @@ class GCantoneseTextService(TextService):
         # Chinese mode enabled
         if not self.isComposing():
             if keyEvent.keyCode >= ord('A') and keyEvent.keyCode <= ord('Z') and not keyEvent.isKeyDown(VK_CONTROL):
+                return True
+            elif gsymbols.is_symbol_pressed(keyEvent):
                 return True
             else:
                 return False
@@ -214,7 +217,7 @@ class GCantoneseTextService(TextService):
     def onKeyDown(self, keyEvent):
         if self.retriever == None:
             print("Error: retriever not ready!!")
-        # Ignore Ctrl-C / Ctrl-V interrupts composition
+        # Ctrl-C / Ctrl-V interrupts composition
         if keyEvent.keyCode != VK_CONTROL and keyEvent.isKeyDown(VK_CONTROL):
             self.composition_buffer = ""
             self.commit_composition()
@@ -228,8 +231,8 @@ class GCantoneseTextService(TextService):
             self.commit_composition()
             return True
         # Numeric input selects candidate
-        if keyEvent.keyCode >= ord('1') and keyEvent.keyCode <= ord('9') and \
-           not keyEvent.isKeyDown(VK_SHIFT):
+        if self.isComposing() and keyEvent.keyCode >= ord('1') and \
+           keyEvent.keyCode <= ord('9') and not keyEvent.isKeyDown(VK_SHIFT):
             index = keyEvent.keyCode - ord('1')
             if self.selected_page != None and \
                self.showCandidates and \
@@ -305,6 +308,9 @@ class GCantoneseTextService(TextService):
             self.retriever.register_input(self.get_input_query())
             self.update_composition()
             return True
+        if gsymbols.is_symbol_pressed(keyEvent):
+            self.setCompositionString(self.compositionString + gsymbols.get_symbol(keyEvent))
+            self.commit_composition()
         return True
 
     def onKeyboardStatusChanged(self, opened):

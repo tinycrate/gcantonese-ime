@@ -62,6 +62,6 @@ def get_symbol(keyEvent):
         if type(symbol) is list:
             switch = symbol[1]
             symbol[1] = not symbol[1]
-            return symbol[switch]
+            return symbol[0][int(switch)]
         else:
             return symbol

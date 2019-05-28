@@ -25,6 +25,7 @@ symbols = {
     VK_OEM_COMMA: "\uff0c",
     VK_OEM_PERIOD: "\u3002",
     VK_OEM_2: "\uff0f",
+    VK_OEM_5: "\u3001",
 }
 
 symbols_shifted = {
@@ -41,7 +42,6 @@ symbols_shifted = {
     VK_OEM_MINUS: "\u2014\u2014",
     VK_OEM_4: "\uff5b",
     VK_OEM_6: "\uff5d",
-    VK_OEM_5: "\u3001",
     VK_OEM_1: "\uff1a",
     VK_OEM_7: ["\u300e\u300f", False],
     VK_OEM_COMMA: "\u300a",

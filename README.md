@@ -12,13 +12,12 @@ A tool which allows Google Cantonese Input on PC outside Chrome (targeting Windo
 *   **[[按此下載]](https://github.com/tinycrate/gcantonese-ime/releases/)**
 
     1.   揀最新版本
-    2.   跟隨安裝指示
+    2.   跟從安裝指示
 
-*   本輸入法不含惡意程式，Windows或者防毒軟件可能偶爾出現誤判，可安全忽略。  
-    不過賣橙話橙靚，不安者請自行斟酌
+*   本輸入法不含惡意程式，Windows或者防毒軟件可能偶爾出現誤判，可安全忽略。
 
 ## PIME
-本輸入法使用 [PIME](https://github.com/EasyIME/PIME) 這般優秀的輸入法框架作為開發平台，並以
+本輸入法使用 [PIME](https://github.com/EasyIME/PIME) 輸入法框架作為開發平台，並以
 [LGPLv2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) 形式獲得授權。
 你可以 [按此](https://github.com/EasyIME/PIME) 取得 PIME 的原始碼以及編譯方式 。
 
@@ -42,8 +41,3 @@ A tool which allows Google Cantonese Input on PC outside Chrome (targeting Windo
     regsvr32 /u "C:\Program Files (X86)\PIME\x86\PIMETextService.dll"
     regsvr32 "C:\Program Files (X86)\PIME\x86\PIMETextService.dll"
     ```    
-
-## Disclaimer
-This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with 
-Google. Google is a registered trademark of Google Inc. This project serves as a proof of concept and the code
-is made available on Github mainly under the intention of educational sharing

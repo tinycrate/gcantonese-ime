@@ -38,6 +38,6 @@ A tool which allows Google Cantonese Input on PC outside Chrome (targeting Windo
     如果使用 32-bit Windows，請用以下命令代替：
     
     ```
-    regsvr32 /u "C:\Program Files (X86)\PIME\x86\PIMETextService.dll"
-    regsvr32 "C:\Program Files (X86)\PIME\x86\PIMETextService.dll"
+    regsvr32 /u "C:\Program Files\PIME\x86\PIMETextService.dll"
+    regsvr32 "C:\Program Files\PIME\x86\PIMETextService.dll"
     ```    

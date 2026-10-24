@@ -1,18 +1,20 @@
-# Google 廣東話輸入法 for Windows (PIME插件)
+# Google 廣東話輸入法 for Windows
 A tool which allows Google Cantonese Input on PC outside Chrome (targeting Windows 8+)  
 唔駛喺 Chrome 入面都用到嘅 Google 廣東話輸入法 (Windows 8 以上)
 
+![Demo](./demo.gif)
+
 ## 功能
 *   喺 Windows 入面使用廣東話輸入法，適用於大部分程式同遊戲，唔再局限喺手機同 Google Docs
-*   完美支援 Windows 10
-*   Shift 切換中英文, ← → 鍵選字, ↑ ↓ 鍵轉頁數, Space 確認
+*   完美支援 Windows 10/11
+*   Shift 切換中英文, Space 打開選字表, ← → 鍵選字, ↑ ↓ 鍵轉頁數
 *   中文模式支援常用全形符號：，。「」『』！？——…… 等等
 
 ## 下載/安裝
 *   **[[按此下載]](https://github.com/tinycrate/gcantonese-ime/releases/)**
 
     1.   揀最新版本
-    2.   跟從安裝指示
+    2.   依照安裝指示進行
 
 *   本輸入法不含惡意程式，Windows或者防毒軟件可能偶爾出現誤判，可安全忽略。
 

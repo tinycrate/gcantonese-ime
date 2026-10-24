@@ -54,7 +54,7 @@ class GWordRetrievalService:
             successful = False
             try:
                 response = urllib.request.urlopen("{}?{}".format(REQUEST_URL, params_str), timeout=1)
-                response = json.loads(response.read().decode('utf-8'), encoding='utf-8')
+                response = json.loads(response.read().decode('utf-8'))
                 if response[0] != "SUCCESS":
                     print("[{}, {}]:".format(ascii(input_str), pages),
                           "Google input tools reported an error: {}".format(response[0]))

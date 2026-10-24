@@ -38,78 +38,77 @@ class GWordRetrievalService:
                 print("[{}, {}]: Request dropped for existing request".format(ascii(input_str), pages))
                 return
             self.requesting[input_str] = pages
-        request_num = PAGE_SIZE * pages
-        print("[{}, {}]: Requesting {} items from Google Input!".format(ascii(input_str), pages, request_num))
-        params = {}
-        params['text'] = input_str
-        params['itc'] = REQUEST_LANG
-        params['num'] = request_num
-        params['ie'] = 'utf-8'
-        params['oe'] = 'utf-8'
-        params_str = urllib.parse.urlencode(params, encoding='utf-8')
-        trials = 0
-        backoff = 0.1
-        while True:
-            print("[{}, {}]: Request trail {}...".format(ascii(input_str), pages, trials))
-            successful = False
-            try:
-                response = urllib.request.urlopen("{}?{}".format(REQUEST_URL, params_str), timeout=1)
-                response = json.loads(response.read().decode('utf-8'))
-                if response[0] != "SUCCESS":
-                    print("[{}, {}]:".format(ascii(input_str), pages),
-                          "Google input tools reported an error: {}".format(response[0]))
+        try:
+            request_num = PAGE_SIZE * pages
+            print("[{}, {}]: Requesting {} items from Google Input!".format(ascii(input_str), pages, request_num))
+            params = {}
+            params['text'] = input_str
+            params['itc'] = REQUEST_LANG
+            params['num'] = request_num
+            params['ie'] = 'utf-8'
+            params['oe'] = 'utf-8'
+            params_str = urllib.parse.urlencode(params, encoding='utf-8')
+            trials = 0
+            backoff = 0.1
+            while True:
+                print("[{}, {}]: Request trail {}...".format(ascii(input_str), pages, trials))
+                successful = False
+                try:
+                    response = urllib.request.urlopen("{}?{}".format(REQUEST_URL, params_str), timeout=1)
+                    response = json.loads(response.read().decode('utf-8'))
+                    if response[0] != "SUCCESS":
+                        print("[{}, {}]:".format(ascii(input_str), pages),
+                              "Google input tools reported an error: {}".format(response[0]))
+                    else:
+                        successful = True
+                except (ValueError, urllib.error.URLError) as e:
+                    print("[{}, {}]: Word suggestion retrieval error: {}".format(ascii(input_str), pages, e))
+                if not successful:
+                    if trials >= REQUEST_TRIAL_MAX:
+                        print("[{}, {}]: Retrieval failed after {} retries.".format(ascii(input_str), pages, trials))
+                    print("[{}, {}]: Retrying in {backoff} seconds...".format(ascii(input_str), pages))
+                    time.sleep(backoff)
+                    backoff *= 2
+                    trials += 1
                 else:
-                    successful = True
-            except (ValueError, urllib.error.URLError) as e:
-                print("[{}, {}]: Word suggestion retrieval error: {}".format(ascii(input_str), pages, e))
-            if not successful:
-                if trials >= REQUEST_TRIAL_MAX:
-                    print("[{}, {}]: Retrieval failed after {} retries.".format(ascii(input_str), pages, trials))
-                    with self.threadlock:
-                        self.requesting.pop(input_str, 0)
-                    return
-                print("[{}, {}]: Retrying in {backoff} seconds...".format(ascii(input_str), pages))
-                time.sleep(backoff)
-                backoff *= 2
-                trials += 1
+                    break
+            print("[{}, {}]: Got a response! forging GRequest...".format(ascii(input_str), pages))
+            # Extract real input from queries like "|{committing},{real_input}"
+            real_input = re.sub(r"^\|.+,", "", input_str)
+            word_suggestions = response[1][0][1]
+            word_info = response[1][0][3]
+            grequest = GRequest()
+            grequest.request = input_str
+            grequest.suggestions = []
+            if len(word_suggestions) <= 0:
+                grequest.suggestions = [GSuggestion(real_input, "", len(real_input))]
+                grequest.requested_pages = 1
+                grequest.max_pages = 1
             else:
-                break
-        print("[{}, {}]: Got a response! forging GRequest...".format(ascii(input_str), pages))
-        # Extract real input from queries like "|{committing},{real_input}"
-        real_input = re.sub(r"^\|.+,", "", input_str)
-        word_suggestions = response[1][0][1]
-        word_info = response[1][0][3]
-        grequest = GRequest()
-        grequest.request = input_str
-        grequest.suggestions = []
-        if len(word_suggestions) <= 0:
-            grequest.suggestions = [GSuggestion(real_input, "", len(real_input))]
-            grequest.requested_pages = 1
-            grequest.max_pages = 1
-        else:
-            grequest.requested_pages = math.ceil(len(word_suggestions)/PAGE_SIZE)
-            if len(word_suggestions) < request_num:
-                grequest.max_pages = grequest.requested_pages
-            for i, word in enumerate(word_suggestions):
-                annotation = word_info['annotation'][i]
-                if 'matched_length' in word_info:
-                    matched_length = word_info['matched_length'][i]
-                else:
-                    matched_length = len(real_input)
-                grequest.suggestions.append(GSuggestion(word, annotation,
-                                                        matched_length))
-        grequest.requested_time = requested_time
-        print("[{}, {}]: Saving to cache...".format(ascii(input_str), pages))
-        with self.threadlock:
-            cached = self.cache.get(input_str)
-            if cached != None:
-                if cached.requested_time > grequest.requested_time:
-                    print("[{}, {}]: Skipping save, cache is newer!".format(ascii(input_str), pages))
-                    self.requesting.pop(input_str, 0)
-                    return
-            self.cache.put(grequest)
-            self.requesting.pop(input_str, 0)
-        print("[{}, {}]: Request completed!".format(ascii(input_str), pages))
+                grequest.requested_pages = math.ceil(len(word_suggestions)/PAGE_SIZE)
+                if len(word_suggestions) < request_num:
+                    grequest.max_pages = grequest.requested_pages
+                for i, word in enumerate(word_suggestions):
+                    annotation = word_info['annotation'][i]
+                    if 'matched_length' in word_info:
+                        matched_length = word_info['matched_length'][i]
+                    else:
+                        matched_length = len(real_input)
+                    grequest.suggestions.append(GSuggestion(word, annotation,
+                                                            matched_length))
+            grequest.requested_time = requested_time
+            print("[{}, {}]: Saving to cache...".format(ascii(input_str), pages))
+            with self.threadlock:
+                cached = self.cache.get(input_str)
+                if cached != None:
+                    if cached.requested_time > grequest.requested_time:
+                        print("[{}, {}]: Skipping save, cache is newer!".format(ascii(input_str), pages))
+                        return
+                self.cache.put(grequest)
+            print("[{}, {}]: Request completed!".format(ascii(input_str), pages))
+        finally:
+            with self.threadlock:
+                self.requesting.pop(input_str, 0)
 
     def register_input(self, input_str):
         if len(input_str) <= 0:
